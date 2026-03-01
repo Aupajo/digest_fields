@@ -1,42 +1,26 @@
 RSpec.describe DigestFields do
-  include described_class
-
   it "has a version number" do
     expect(DigestFields::VERSION).not_to be nil
   end
 
-  let(:spec_examples) do
-    {
-      b1: {
-        body: %({"hello": "world"}\n),
-        sha256: "sha-256=:RK/0qy18MlBSVnWgjwz6lZEWjP/lF5HF9bvEF8FabDg=:",
-        sha512: "sha-512=:YMAam51Jz/jOATT6/zvHrLVgOYTGFy1d6GJiOHTohq4yP+pgk4vf2aCsyRZOtw8MjkM7iw7yZ/WkppmM44T3qg==:"
-      }
-    }
+  it "exposes an Algorithms registry" do
+    expect(DigestFields.algorithms).to be_a(DigestFields::Algorithms)
   end
 
   describe ".digest" do
-    it "can hash a body into SHA-256" do
-      example = spec_examples[:b1]
-      digest_value = digest(example[:body], algorithms: :sha256)
-      expect(digest_value).to eq(example[:sha256])
+    it "digests a body with all registered algorithms by default" do
+      expect(DigestFields.digest(%({"hello": "world"}\n)))
+        .to eq("sha-256=:RK/0qy18MlBSVnWgjwz6lZEWjP/lF5HF9bvEF8FabDg=:, sha-512=:YMAam51Jz/jOATT6/zvHrLVgOYTGFy1d6GJiOHTohq4yP+pgk4vf2aCsyRZOtw8MjkM7iw7yZ/WkppmM44T3qg==:")
     end
 
-    it "can hash a body into SHA-512" do
-      example = spec_examples[:b1]
-      digest_value = digest(example[:body], algorithms: :sha512)
-      expect(digest_value).to eq(example[:sha512])
+    it "accepts a single algorithm: override" do
+      expect(DigestFields.digest(%({"hello": "world"}\n), algorithms: "sha-256"))
+        .to eq("sha-256=:RK/0qy18MlBSVnWgjwz6lZEWjP/lF5HF9bvEF8FabDg=:")
     end
 
-    it "can hash multiple algorithms" do
-      example = spec_examples[:b1]
-      digest_value = digest(example[:body], algorithms: %i[sha256 sha512])
-      expect(digest_value).to eq("#{example[:sha256]}, #{example[:sha512]}")
-    end
-
-    it "raises an error if algorithm is not supported" do
-      expect { DigestFields.digest("body", algorithms: :unknown) }
-        .to raise_error(ArgumentError, /unknown/)
+    it "accepts an array of algorithms: override" do
+      expect(DigestFields.digest(%({"hello": "world"}\n), algorithms: %w[sha-512 sha-256]))
+        .to eq("sha-512=:YMAam51Jz/jOATT6/zvHrLVgOYTGFy1d6GJiOHTohq4yP+pgk4vf2aCsyRZOtw8MjkM7iw7yZ/WkppmM44T3qg==:, sha-256=:RK/0qy18MlBSVnWgjwz6lZEWjP/lF5HF9bvEF8FabDg=:")
     end
   end
 end

@@ -12,11 +12,28 @@ Support for `Content-Digest` and `Repl-Digest` header digests that follows the [
 ### Library
 
 ```ruby
-digest = DigestFields.digest(body)
-digest.to_s # => "sha-256=:X48E9qOok...:, sha-512=:jas48SD...:"
+DigestFields.digest(body)
+# => "sha-256=:X48E9qOok...:, sha-512=:jas48SD...:"
 
-digest = DigestFields.digest(body, algorithms: [:sha256])
-digest.to_s # => "sha-256=:X48E9qOok...:
+DigestFields.digest(body, algorithms: "sha-256")
+# => "sha-256=:X48E9qOok...:
+
+DigestFields.digest(body, algorithms: %w[sha-256 sha-512])
+# => "sha-256=:X48E9qOok...:, sha-512=:jas48SD...:"
+```
+
+### Custom Algorithms
+
+`sha-512` and `sha-256` are supported.
+
+The spec's [deprecated hash algorithms](https://www.iana.org/assignments/http-digest-hash-alg/http-digest-hash-alg.xhtml) are intentionally not supported, but you can add your own support if you need to:
+
+```ruby
+# Register a custom algorithm
+DigestFields.algorithms.add("md5", ->(body) { Digest::MD5.base64digest(body) })
+
+DigestFields.digest(body, algorithms: %w[md5 sha-512])
+# => "md5=:...:, sha-512=:...:, "
 ```
 
 ## Installation
