@@ -176,13 +176,14 @@ RSpec.describe Rack::DigestFields do
 
     it "does not call close on bodies that do not respond to close" do
       plain_body = ["An unexceptional string\n"]
-      # plain array has no close method — should not raise
       middleware = build_middleware(
         stub_app(body: plain_body),
         on_partial_content: :raise,
         unencoded_digest: {algorithms: %w[sha-256]}
       )
-      expect { middleware.call({}) }.not_to raise_error
+      status, headers, _body = middleware.call({})
+      expect(status).to eq(200)
+      expect(headers).to have_key("Unencoded-Digest")
     end
   end
 end
