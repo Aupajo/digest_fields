@@ -19,6 +19,19 @@ module Rack
     def call(env)
       status, headers, body = @app.call(env)
 
+      if status == 206
+        mode = @unencoded_digest[:on_partial_content] || @on_partial_content
+        case mode
+        when :skip
+          return [status, headers, body]
+        when :warn
+          Kernel.warn("Rack::DigestFields: Unencoded-Digest cannot be computed for 206 Partial Content")
+          return [status, headers, body]
+        when :raise
+          raise PartialContentError, "Rack::DigestFields: Unencoded-Digest cannot be computed for 206 Partial Content"
+        end
+      end
+
       chunks = []
       body.each { |chunk| chunks << chunk }
       body.close if body.respond_to?(:close)

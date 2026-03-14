@@ -186,4 +186,76 @@ RSpec.describe Rack::DigestFields do
       expect(headers).to have_key("Unencoded-Digest")
     end
   end
+
+  describe "#call — 206 Partial Content" do
+    let(:partial_app) { stub_app(status: 206) }
+
+    context "with on_partial_content: :raise" do
+      let(:middleware) { build_middleware(partial_app, on_partial_content: :raise, unencoded_digest: true) }
+
+      it "raises PartialContentError" do
+        expect { middleware.call({}) }
+          .to raise_error(Rack::DigestFields::PartialContentError)
+      end
+    end
+
+    context "with on_partial_content: :skip" do
+      let(:original_body) { ["An unexceptional string\n"] }
+      let(:middleware) { build_middleware(stub_app(status: 206, body: original_body), on_partial_content: :skip, unencoded_digest: true) }
+
+      it "omits the Unencoded-Digest header" do
+        _status, headers, _body = middleware.call({})
+        expect(headers).not_to have_key("Unencoded-Digest")
+      end
+
+      it "returns the original body object unchanged" do
+        _status, _headers, body = middleware.call({})
+        expect(body).to be(original_body)
+      end
+
+      it "does not call close on the body" do
+        closed = false
+        original_body.define_singleton_method(:close) { closed = true }
+        middleware.call({})
+        expect(closed).to be(false)
+      end
+    end
+
+    context "with on_partial_content: :warn" do
+      let(:original_body) { ["An unexceptional string\n"] }
+      let(:middleware) { build_middleware(stub_app(status: 206, body: original_body), on_partial_content: :warn, unencoded_digest: true) }
+
+      it "omits the Unencoded-Digest header" do
+        _status, headers, _body = middleware.call({})
+        expect(headers).not_to have_key("Unencoded-Digest")
+      end
+
+      it "emits a warning" do
+        expect { middleware.call({}) }
+          .to output(/Unencoded-Digest/).to_stderr
+      end
+
+      it "does not call close on the body" do
+        closed = false
+        original_body.define_singleton_method(:close) { closed = true }
+        middleware.call({})
+        expect(closed).to be(false)
+      end
+    end
+
+    context "with per-header on_partial_content overriding global" do
+      let(:middleware) do
+        build_middleware(
+          partial_app,
+          on_partial_content: :skip,
+          unencoded_digest: {algorithms: %w[sha-256], on_partial_content: :warn}
+        )
+      end
+
+      it "uses the per-header setting (warn) rather than the global (skip)" do
+        expect { middleware.call({}) }
+          .to output(/Unencoded-Digest/).to_stderr
+      end
+    end
+  end
 end
