@@ -17,7 +17,17 @@ module Rack
     end
 
     def call(env)
-      @app.call(env)
+      status, headers, body = @app.call(env)
+
+      chunks = []
+      body.each { |chunk| chunks << chunk }
+      body.close if body.respond_to?(:close)
+      buffered = chunks.join
+
+      digest = ::DigestFields.digest(buffered, algorithms: @unencoded_digest[:algorithms])
+      headers = headers.merge("Unencoded-Digest" => digest)
+
+      [status, headers, [buffered]]
     end
 
     private

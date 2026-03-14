@@ -92,4 +92,69 @@ RSpec.describe Rack::DigestFields do
       end.not_to raise_error
     end
   end
+
+  describe "#call — 200 response" do
+    let(:middleware) { build_middleware(on_partial_content: :raise, unencoded_digest: true) }
+
+    it "adds Unencoded-Digest with both default algorithms" do
+      _status, headers, _body = middleware.call({})
+      expect(headers["Unencoded-Digest"])
+        .to eq("sha-256=:#{sha256_value}:, sha-512=:#{sha512_value}:")
+    end
+
+    it "returns the original status code" do
+      status, _headers, _body = middleware.call({})
+      expect(status).to eq(200)
+    end
+
+    it "returns the buffered body as a single-element array" do
+      _status, _headers, body = middleware.call({})
+      expect(body).to eq([body_string])
+    end
+
+    context "with a custom algorithm" do
+      let(:middleware) do
+        build_middleware(on_partial_content: :raise, unencoded_digest: {algorithms: %w[sha-256]})
+      end
+
+      it "includes only the specified algorithm" do
+        _status, headers, _body = middleware.call({})
+        expect(headers["Unencoded-Digest"]).to eq("sha-256=:#{sha256_value}:")
+      end
+    end
+
+    context "when a downstream middleware would apply content-encoding (e.g. Rack::Deflater)" do
+      # The middleware sees the raw bytes before any encoding is applied.
+      # This confirms Unencoded-Digest is computed over the unencoded body regardless
+      # of what happens downstream — as long as the middleware is positioned before
+      # any encoding middleware.
+      it "computes the digest over the unencoded body bytes" do
+        # Same fixture body, same expected digest — positioning before Rack::Deflater
+        # means the middleware sees and digests the unencoded string.
+        _status, headers, _body = middleware.call({})
+        expect(headers["Unencoded-Digest"]).to include("sha-256=:#{sha256_value}:")
+      end
+    end
+
+    context "with a multi-chunk body" do
+      let(:chunks) { ["An unexceptional ", "string\n"] }
+      let(:middleware) do
+        build_middleware(
+          stub_app(body: chunks),
+          on_partial_content: :raise,
+          unencoded_digest: {algorithms: %w[sha-256]}
+        )
+      end
+
+      it "joins chunks before digesting" do
+        _status, headers, _body = middleware.call({})
+        expect(headers["Unencoded-Digest"]).to eq("sha-256=:#{sha256_value}:")
+      end
+
+      it "returns the joined body" do
+        _status, _headers, body = middleware.call({})
+        expect(body).to eq([body_string])
+      end
+    end
+  end
 end
