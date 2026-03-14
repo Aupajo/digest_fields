@@ -52,6 +52,11 @@ RSpec.describe Rack::DigestFields do
       end.to raise_error(ArgumentError, /:ignore/)
     end
 
+    it "raises ArgumentError when unencoded_digest is not true or a Hash" do
+      expect { build_middleware(on_partial_content: :raise, unencoded_digest: false) }
+        .to raise_error(ArgumentError, /unencoded_digest must be true or a Hash/)
+    end
+
     it "raises ArgumentError when algorithms is explicitly empty" do
       expect do
         build_middleware(on_partial_content: :raise, unencoded_digest: {algorithms: []})

@@ -36,6 +36,13 @@ module Rack
 
       validate_on_partial_content!(options[:on_partial_content], context: "global")
 
+      if options.key?(:unencoded_digest)
+        config = options[:unencoded_digest]
+        unless config == true || config.is_a?(Hash)
+          raise ArgumentError, "unencoded_digest must be true or a Hash, got #{config.inspect}"
+        end
+      end
+
       return unless options[:unencoded_digest].is_a?(Hash)
 
       if options[:unencoded_digest].key?(:on_partial_content)
