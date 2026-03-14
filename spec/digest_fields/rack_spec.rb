@@ -157,4 +157,32 @@ RSpec.describe Rack::DigestFields do
       end
     end
   end
+
+  describe "#call — body.close" do
+    it "calls close on the original body after buffering" do
+      closeable_body = ["An unexceptional string\n"]
+      closed = false
+      closeable_body.define_singleton_method(:close) { closed = true }
+
+      middleware = build_middleware(
+        stub_app(body: closeable_body),
+        on_partial_content: :raise,
+        unencoded_digest: {algorithms: %w[sha-256]}
+      )
+      middleware.call({})
+
+      expect(closed).to be(true)
+    end
+
+    it "does not call close on bodies that do not respond to close" do
+      plain_body = ["An unexceptional string\n"]
+      # plain array has no close method — should not raise
+      middleware = build_middleware(
+        stub_app(body: plain_body),
+        on_partial_content: :raise,
+        unencoded_digest: {algorithms: %w[sha-256]}
+      )
+      expect { middleware.call({}) }.not_to raise_error
+    end
+  end
 end
