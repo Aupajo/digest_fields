@@ -5,6 +5,7 @@ RSpec.describe Rack::DigestFields do
   let(:body_string) { "An unexceptional string\n" }
   let(:sha256_value) { "5Bv3NIx05BPnh0jMph6v1RJ5Q7kl9LKMtQxmvc9+Z7Y=" }
   let(:sha512_value) { "WjyMuMD9EI/v0RoJchcevbo6lF498VyE9564OgXf+98iJptoSvb1Czo9uVJu2bVU/tOv90huiMG3+YaMX1kipw==" }
+  let(:rack_env) { {} }
 
   def stub_app(status: 200, body: nil, headers: {})
     response_body = body || [body_string]
@@ -97,18 +98,18 @@ RSpec.describe Rack::DigestFields do
     let(:middleware) { build_middleware(on_partial_content: :raise, unencoded_digest: true) }
 
     it "adds Unencoded-Digest with both default algorithms" do
-      _status, headers, _body = middleware.call({})
+      _status, headers, _body = middleware.call(rack_env)
       expect(headers["Unencoded-Digest"])
         .to eq("sha-256=:#{sha256_value}:, sha-512=:#{sha512_value}:")
     end
 
     it "returns the original status code" do
-      status, _headers, _body = middleware.call({})
+      status, _headers, _body = middleware.call(rack_env)
       expect(status).to eq(200)
     end
 
     it "returns the buffered body as a single-element array" do
-      _status, _headers, body = middleware.call({})
+      _status, _headers, body = middleware.call(rack_env)
       expect(body).to eq([body_string])
     end
 
@@ -118,7 +119,7 @@ RSpec.describe Rack::DigestFields do
       end
 
       it "includes only the specified algorithm" do
-        _status, headers, _body = middleware.call({})
+        _status, headers, _body = middleware.call(rack_env)
         expect(headers["Unencoded-Digest"]).to eq("sha-256=:#{sha256_value}:")
       end
     end
@@ -131,7 +132,7 @@ RSpec.describe Rack::DigestFields do
       it "computes the digest over the unencoded body bytes" do
         # Same fixture body, same expected digest — positioning before Rack::Deflater
         # means the middleware sees and digests the unencoded string.
-        _status, headers, _body = middleware.call({})
+        _status, headers, _body = middleware.call(rack_env)
         expect(headers["Unencoded-Digest"]).to include("sha-256=:#{sha256_value}:")
       end
     end
@@ -147,12 +148,12 @@ RSpec.describe Rack::DigestFields do
       end
 
       it "joins chunks before digesting" do
-        _status, headers, _body = middleware.call({})
+        _status, headers, _body = middleware.call(rack_env)
         expect(headers["Unencoded-Digest"]).to eq("sha-256=:#{sha256_value}:")
       end
 
       it "returns the joined body" do
-        _status, _headers, body = middleware.call({})
+        _status, _headers, body = middleware.call(rack_env)
         expect(body).to eq([body_string])
       end
     end
@@ -169,7 +170,7 @@ RSpec.describe Rack::DigestFields do
         on_partial_content: :raise,
         unencoded_digest: {algorithms: %w[sha-256]}
       )
-      middleware.call({})
+      middleware.call(rack_env)
 
       expect(closed).to be(true)
     end
@@ -181,7 +182,7 @@ RSpec.describe Rack::DigestFields do
         on_partial_content: :raise,
         unencoded_digest: {algorithms: %w[sha-256]}
       )
-      status, headers, _body = middleware.call({})
+      status, headers, _body = middleware.call(rack_env)
       expect(status).to eq(200)
       expect(headers).to have_key("Unencoded-Digest")
     end
@@ -194,7 +195,7 @@ RSpec.describe Rack::DigestFields do
       let(:middleware) { build_middleware(partial_app, on_partial_content: :raise, unencoded_digest: true) }
 
       it "raises PartialContentError" do
-        expect { middleware.call({}) }
+        expect { middleware.call(rack_env) }
           .to raise_error(Rack::DigestFields::PartialContentError)
       end
     end
@@ -204,19 +205,19 @@ RSpec.describe Rack::DigestFields do
       let(:middleware) { build_middleware(stub_app(status: 206, body: original_body), on_partial_content: :skip, unencoded_digest: true) }
 
       it "omits the Unencoded-Digest header" do
-        _status, headers, _body = middleware.call({})
+        _status, headers, _body = middleware.call(rack_env)
         expect(headers).not_to have_key("Unencoded-Digest")
       end
 
       it "returns the original body object unchanged" do
-        _status, _headers, body = middleware.call({})
+        _status, _headers, body = middleware.call(rack_env)
         expect(body).to be(original_body)
       end
 
       it "does not call close on the body" do
         closed = false
         original_body.define_singleton_method(:close) { closed = true }
-        middleware.call({})
+        middleware.call(rack_env)
         expect(closed).to be(false)
       end
     end
@@ -226,19 +227,19 @@ RSpec.describe Rack::DigestFields do
       let(:middleware) { build_middleware(stub_app(status: 206, body: original_body), on_partial_content: :warn, unencoded_digest: true) }
 
       it "omits the Unencoded-Digest header" do
-        _status, headers, _body = middleware.call({})
+        _status, headers, _body = middleware.call(rack_env)
         expect(headers).not_to have_key("Unencoded-Digest")
       end
 
       it "emits a warning" do
-        expect { middleware.call({}) }
+        expect { middleware.call(rack_env) }
           .to output(/Unencoded-Digest/).to_stderr
       end
 
       it "does not call close on the body" do
         closed = false
         original_body.define_singleton_method(:close) { closed = true }
-        middleware.call({})
+        middleware.call(rack_env)
         expect(closed).to be(false)
       end
     end
@@ -253,7 +254,7 @@ RSpec.describe Rack::DigestFields do
       end
 
       it "uses the per-header setting (warn) rather than the global (skip)" do
-        expect { middleware.call({}) }
+        expect { middleware.call(rack_env) }
           .to output(/Unencoded-Digest/).to_stderr
       end
     end
