@@ -4,10 +4,61 @@
 
 Support for `Content-Digest` and `Repl-Digest` header digests that follows the [RFC 9530](https://www.rfc-editor.org/rfc/rfc9530.html) specification.
 
-> [!WARNING]
-> This library currently only offers low-level primitives, and does not interact with Rack, does not set headers or trailers, or decide what consistitues content to digest. This is currently an exercise left to the user.
-
 ## Usage
+
+### Rack middleware
+
+`Rack::DigestFields` automatically computes and injects `Unencoded-Digest` response headers.
+
+#### Why `Unencoded-Digest` and not `Content-Digest` or `Repr-Digest`?
+
+[RFC 9530](https://www.rfc-editor.org/rfc/rfc9530.html) defines two similar headers:
+
+- **`Content-Digest`** — digest of the bytes as transferred on the wire, after any content-encoding (e.g. gzip) is applied.
+- **`Repr-Digest`** — digest of the full selected representation, which also varies with content-encoding.
+
+Both require the middleware to know the final encoded bytes. In a typical deployment, content-encoding is applied *downstream* of the Ruby process — by nginx, a CDN, or `Rack::Deflater` positioned later in the stack. The app never sees those bytes, so it cannot correctly compute either header.
+
+`Unencoded-Digest` is the digest of the body *before* any content-encoding. A Rack middleware always has these bytes, so it can produce the header reliably regardless of what happens downstream.
+
+> [!NOTE]
+> `Unencoded-Digest` is defined in an IETF draft ([draft-ietf-httpbis-unencoded-digest](https://datatracker.ietf.org/doc/draft-ietf-httpbis-unencoded-digest/)) that has not yet been standardised. Breaking changes to the header name, wire format, or semantics are unlikely — current feedback on the draft focuses on security considerations rather than the core design — but it is possible before the RFC is finalised.
+
+```ruby
+# config.ru
+require "digest_fields/rack"
+
+use Rack::DigestFields,
+  on_partial_content: :raise,  # required: :raise | :warn | :skip
+  unencoded_digest: true        # uses default algorithms (sha-256, sha-512)
+```
+
+With algorithm override:
+
+```ruby
+use Rack::DigestFields,
+  on_partial_content: :skip,
+  unencoded_digest: {
+    algorithms: %w[sha-256],
+    on_partial_content: :warn  # overrides global for this header
+  }
+```
+
+In Rails, insert before `Rack::Sendfile` to ensure the middleware sees the raw response body before any transformation:
+
+```ruby
+config.middleware.insert_before Rack::Sendfile, Rack::DigestFields,
+  on_partial_content: :raise,
+  unencoded_digest: true
+```
+
+`on_partial_content` is required with no default — `206 Partial Content` responses cannot correctly produce `Unencoded-Digest` (it requires the full unencoded representation). The three behaviours are:
+
+| Value | Behaviour |
+|---|---|
+| `:raise` | Raise `Rack::DigestFields::PartialContentError` |
+| `:warn` | Emit a warning and omit the header |
+| `:skip` | Omit the header silently |
 
 ### Library
 
