@@ -1,6 +1,7 @@
 # Digest Fields
 
 [![Gem Version](https://badge.fury.io/rb/digest_fields.svg)](https://badge.fury.io/rb/digest_fields)
+[![Documentation](https://img.shields.io/badge/docs-rubydoc.info-blue)](https://www.rubydoc.info/gems/digest_fields)
 
 Support for `Content-Digest` and `Repl-Digest` header digests that follows the [RFC 9530](https://www.rfc-editor.org/rfc/rfc9530.html) specification.
 
